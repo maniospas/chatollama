@@ -1,0 +1,866 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ollama assist</title>
+
+<!-- Prism -->
+<link href="link/prism.css" rel="stylesheet" />
+<script src="link/prism.js"></script>
+<script src="link/prism-python.js"></script>
+<script src="linke/prism-javascript.js"></script>
+<script src="link/prism-rust.js"></script>
+<script src="link/prism-lisp.js"></script>
+<script src="link/prism-java.js"></script>
+<script src="link/prism-json.js"></script>
+<script src="link/prism-json.js"></script>
+<script src="link/tex-svg.js"></script>
+<script src="/link/pdf.min.js"></script>
+<script>
+  pdfjsLib.GlobalWorkerOptions.workerSrc = "/link/pdf.worker.min.js";
+</script>
+
+
+<script src="link/markdown-it.min.js"></script>
+
+<style>
+    body {
+        font-family: Arial, sans-serif;
+        background-color: #EEEEEE;
+        margin: 0;
+        padding: 0;
+        height: 100vh;
+        display: flex;
+        justify-content: center;
+    }
+
+    #page {
+        background-color: #EEEEEE;
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+        width: 100%;
+        max-width: 1200px;
+        box-sizing: border-box;
+    }
+
+    #chat-container {
+        flex: 1;
+        overflow-y: auto;
+        padding: 20px;
+        box-sizing: border-box;
+        margin-bottom: 20px;
+    }
+
+    .prompt, .reply, .error, .tooling, .print {
+        width: 95%;
+        padding: 12px;
+        border-radius: 10px;
+        margin: 10px 0;
+        overflow-wrap: break-word;
+    }
+    .tooling { background: #FFEEDD; border: 1px solid #1F1F1F; }
+    .prompt { background: #DDEEFF; border: 1px solid #1F1F1F; }
+    .reply  { background: #FFFFFF; border: 1px solid #1F1F1F; }
+    .print  { background: #DDDDDD; border: 1px solid #1F1F1F; }
+    .error  { background: #FFDDDD; border: 1px solid #AA0000; }
+
+    .copy-btn {
+        position: absolute;
+        top: 6px;
+        right: 6px;
+        background: #dddddd;
+        color: black;
+        border: none;
+        padding: 5px 10px;
+        font-size: 12px;
+        border-radius: 5px;
+        cursor: pointer;
+        opacity: 0.5;
+    }
+    .copy-btn:hover {
+        opacity: 0.5;
+        background: #999999;
+    }
+
+    pre {
+        position: relative;
+        padding-top: 30px !important;
+    }
+
+    #input-bar {
+        display: flex;
+        padding: 10px;
+        gap: 10px;
+        outline: 1px solid #bbb;
+        background: #ddd;
+        margin-bottom: 30px;
+    }
+
+    #message-input {
+        flex: 1;
+        height: auto;
+        min-height: 38px;
+        padding: 8px;
+        border: none;
+        border-radius: 5px;
+        font-size: 14px;
+        font-family: Arial;
+        box-shadow: 0 0 6px rgba(0,0,0,0.15);
+    }
+
+    #send-button {
+        width: 160px;
+        border: none;
+        background-color: #225599;
+        color: white;
+        cursor: pointer;
+        border-radius: 6px;
+        font-size: 14px;
+    }
+    #send-button:hover { background-color: #2b6ccc; }
+
+    .notification-tag {
+        position: absolute;
+        top: -8px;
+        left: -10px;
+        background: #444444;
+        color: white;
+        padding: 1px 8px;
+        font-size: 11px;
+        border-radius: 6px;
+        border: 1px solid black;
+        font-size: 12px;
+    }
+    .message-container {
+        position: relative;
+    }
+
+    /* BACKDROP (dark + blur) */
+    #sysmodal-backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.35);
+        backdrop-filter: blur(4px);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+        animation: fadeIn 0.15s ease-out;
+    }
+
+    /* MODAL CONTAINER (Apple-style card) */
+    #sysmodal {
+        background: #EEEEEE;
+        border-radius: 12px;
+        width: 520px;
+        max-width: 90%;
+        padding: 22px 26px;
+        box-shadow: 0 4px 30px rgba(0,0,0,0.17);
+        animation: popIn 0.18s ease-out;
+        border: 1px solid #ddd;
+        padding: 20px;
+        padding-right: 40px;
+    }
+
+    /* TITLE */
+    #sysmodal h3 {
+        margin: 0 0 12px;
+        font-size: 20px;
+        font-weight: 600;
+        color: #222;
+    }
+
+    /* TEXTAREA */
+    #sysmodal textarea {
+        width: 100%;
+        height: 170px;
+        padding: 10px 12px;
+        border-radius: 8px;
+        border: 1px solid #ccc;
+        font-size: 14px;
+        font-family: Consolas, monospace;
+        outline: none;
+        resize: vertical;
+        transition: border 0.15s;
+    }
+
+    #sysmodal textarea:focus {
+        border: 1px solid #4a8df8;
+    }
+
+    /* BUTTON ROW (right-aligned, subtle spacing) */
+    #sysmodal-buttons {
+        margin-top: 14px;
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+    }
+
+    /* BUTTON BASE STYLE */
+    .sysbtn {
+        padding: 6px 14px;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 14px;
+        transition: background 0.15s, opacity 0.15s;
+    }
+
+    /* BUTTON TYPES */
+    #sysmodal-reset  { background: #EEEEEE; color: #aa1f1f; }
+    #sysmodal-cancel { background: #EEEEEE; color: #1f1f1f; }
+    #sysmodal-save   { background: #EEEEEE; color: #1f881f; }
+
+    /* ANIMATIONS */
+    @keyframes fadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+    }
+
+    @keyframes popIn {
+    from { opacity: 0; transform: translateY(10px) scale(0.97); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    /* --- SIDEBAR CONTAINER --- */
+    #sidebar {
+        position: absolute;
+        top: 20px;
+        left: 20px;
+        background: #f5f5f5;
+        padding: 14px 14px;
+        border-radius: 12px;
+        border: 1px solid #ccc;
+        box-shadow: 0 0 12px rgba(0,0,0,0.08);
+    }
+
+    /* --- SIDEBAR SECTIONS --- */
+    .sidebar-section {
+        margin-bottom: 22px;
+    }
+
+    /* --- YOUR ORIGINAL MODEL DROPDOWN STYLE (moved from inline) --- */
+    #model-select {
+        padding-left: 6px;
+        font-size: 24px;
+        border: 0px;
+        background-color: #f5f5f5;
+        color: #686;
+        width: 150px;
+    }
+
+    /* --- SIDEBAR BUTTON STYLE --- */
+    .sidebar-btn {
+        padding: 4px 6px;
+        border: none;
+        background: #f5f5f5;
+        color: #222;
+        font-size: 16px;
+        border-radius: 6px;
+        width: 150px;
+        cursor: pointer;
+        text-align: left;
+        margin-bottom: 8px;
+        transition: background 0.15s;
+    }
+
+    .sidebar-btn:hover {
+        background: #e2e2e2;
+    }
+
+    /* Danger button (clear history) */
+    .sidebar-btn.danger {
+        color: #AA1F1F;
+    }
+
+    .sidebar-btn.danger:hover {
+        background: #f4dcdc;
+    }
+
+
+
+
+</style>
+</head>
+
+<body>
+<div id="page">
+
+<div id="sidebar">
+    <div class="sidebar-section">
+        <select id="model-select">
+            <option value="llama3.2:latest">llama3.2</option>
+            <option value="minimax-m2.5:cloud">minimax2.5 (cloud)</option>
+            <option value="mistral:latest">mistral</option>
+            <option value="gemma3:270m ">gemma3 (270m)</option>
+            <option value="codellama:latest">codellama</option>
+            <option value="phi3:latest">phi3</option>
+        </select>
+    </div>
+
+    <button id="tools-btn-enable" class="sidebar-btn"  onclick="toggleTools(true)"  class="sidebar-btn">▶ allow tools</button>
+    <button id="tools-btn-disable" class="sidebar-btn" onclick="toggleTools(false)" class="sidebar-btn" style="display:none">⛔ no tools (@tools for help)</button><br>
+    <button id="system-btn" class="sidebar-btn">🧭 system</button><br>
+    <button id="clear-btn"  class="sidebar-btn danger">🗑️ clear</button><br>
+</div>
+
+
+<div id="chat-container"></div>
+
+
+<div id="input-bar">
+    <textarea id="message-input" placeholder="Type a message or drop a file here..."></textarea>
+    <button id="send-button">Send (ctrl+enter)</button>
+    <input type="hidden" id="toggleTools" value="false">
+</div>
+
+</div>
+
+<div id="sysmodal-backdrop">
+    <div id="sysmodal">
+
+        <h3>System context</h3>
+        <textarea id="sysmodal-input"></textarea>
+
+        <div id="sysmodal-buttons">
+            <button id="sysmodal-reset"  class="sysbtn">Reset</button>
+            <button id="sysmodal-save"   class="sysbtn">Save</button>
+            <button id="sysmodal-cancel" class="sysbtn">Cancel</button>
+        </div>
+
+    </div>
+</div>
+
+
+
+<script>
+window.MathJax = {
+    tex: {
+        inlineMath: [["$", "$"], ["\\(", "\\)"]],
+        displayMath: [["$$", "$$"], ["\\[", "\\]"]]
+    },
+    svg: { fontCache: "global" }
+};
+
+
+function toggleTools(enable, noSave=false) {
+    const stateElem = document.getElementById("toggleTools");
+    const btnEnable = document.getElementById("tools-btn-enable");
+    const btnDisable = document.getElementById("tools-btn-disable");
+    stateElem.value = enable ? "true" : "false";
+    btnEnable.style.display = enable ? "none" : "inline-block";
+    btnDisable.style.display = enable ? "inline-block" : "none";
+    input.value = "";
+    if (!noSave && typeof saveState === "function") saveState();
+    scrollToBottom();
+}
+
+
+const chat = document.getElementById("chat-container");
+const input = document.getElementById("message-input");
+const sendBtn = document.getElementById("send-button");
+const modelSelect = document.getElementById("model-select");
+
+const md = window.markdownit({
+    html: true,
+    linkify: true,
+    highlight(str, lang) {
+        if (Prism.languages[lang])
+            return `<pre class="language-${lang}"><code>${Prism.highlight(str, Prism.languages[lang], lang)}</code></pre>`;
+        return `<pre><code>${md.utils.escapeHtml(str)}</code></pre>`;
+    }
+});
+
+let messages = [{ role: "system", content: "You are a helpful AI assistant. Reply concisely." }];
+
+function addCopyButtons() {
+    const blocks = chat.querySelectorAll("pre > code");
+    blocks.forEach(code => {
+        const pre = code.parentElement;
+        if (pre.querySelector(".copy-btn")) return;
+        const btn = document.createElement("button");
+        btn.className = "copy-btn";
+        btn.textContent = "Copy";
+        btn.onclick = () => {
+            navigator.clipboard.writeText(code.textContent);
+            btn.textContent = "Copied!";
+            setTimeout(() => btn.textContent = "Copy", 1200);
+        };
+        pre.appendChild(btn);
+    });
+}
+
+function escapeHtml(text) {
+    text = text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    return text
+        .split("\n")
+        .map(line => {
+            line = line.replace(/\t/g, "&nbsp;&nbsp;&nbsp;&nbsp;");
+            line = line.replace(/ /g, "&nbsp;");
+            return line;
+        })
+        .join("<br>");
+}
+
+
+
+function scrollToBottom() {
+    const prompts = chat.getElementsByClassName("prompt");
+    if (prompts.length === 0) return;
+    const lastPrompt = prompts[prompts.length - 1];
+    chat.scrollTop = lastPrompt.offsetTop;
+}
+
+
+function renderMessage(content, type) {
+    const wrapper = document.createElement("div");
+    wrapper.className = "message-container";
+
+    const div = document.createElement("div");
+    div.className = type;
+
+    // Special tag for tooling, print, and error
+    if (type === "error") {
+        const tag = document.createElement("div");
+        tag.className = "notification-tag";
+        tag.innerText = "error";
+        wrapper.appendChild(tag);
+    }
+    if (type === "tooling") {
+        const tag = document.createElement("div");
+        tag.className = "notification-tag";
+        tag.innerHTML = "running tools";
+        wrapper.appendChild(tag);
+        if(content.length>120)
+            content = `<details><summary>Long tool context.</summary>${content}</details>`;
+    }
+    if (type === "print") {
+        const tag = document.createElement("div");
+        tag.className = "notification-tag";
+        tag.innerHTML = "print";
+        wrapper.appendChild(tag);
+    }
+
+    if (type === "ask" || type === "print" || type === "print" || type === "tooling") {
+        div.innerHTML = md.render(content);
+        scrollToBottom();
+    }
+    else if (type === "error")
+        div.innerHTML = content;
+    else if (type === "reply")
+        div.innerHTML = md.render(content);
+    else
+        div.innerHTML = escapeHtml(content);
+
+    wrapper.appendChild(div);
+    chat.appendChild(wrapper);
+}
+
+function scrollToReplyBottom() {
+    const prompts = chat.getElementsByClassName("prompt");
+    if (prompts.length <= 1) return;
+    const lastPrompt = prompts[prompts.length - 1];
+    chat.scrollTop = lastPrompt.offsetTop - 200;
+}
+
+function findRightmostTool(text, max_pos=-1) {
+    if(max_pos==-1) max_pos = text.length - 1;
+    const toolsEnabled = (document.getElementById("toggleTools").value === "true");
+    let in_string = false;
+    for (let i = max_pos; i >= 0; i--) {
+        if (!toolsEnabled) continue;
+        if (text[i]=="\"") in_string = !in_string;
+        if (in_string) continue;
+        if (text[i] !== '@') continue;
+        const start = i;
+        i++;
+        let name = "";
+        while (i < text.length && /[A-Za-z0-9_]/.test(text[i])) {
+            name += text[i];
+            i++;
+        }
+        if (name.length === 0) continue;
+        let j = i;
+        while (j < text.length && /\s/.test(text[j])) j++;
+        let arg = "";
+        let end = j;
+
+        if (j < text.length && text[j] === "(") {
+            j++; // skip '('
+            let argStart = j;
+            while (j < text.length && text[j] !== ')') j++;
+            if (j < text.length) {
+                arg = text.slice(argStart, j).trim();
+                end = j + 1; // include ')'
+            }
+            else
+                throw new Error("Imbalanced paranthesis after @"+name);
+        }
+        else {
+            arg = text.slice(j, text.length).trim();
+            end = text.length;
+        }
+        const full = text.slice(start, end);
+        return { full, name, arg, index: start };
+    }
+    return null;
+}
+
+
+async function expandTools(text, messages) {
+    let max_pos = -1;
+    while (true) {
+        const t = findRightmostTool(text, max_pos);
+        if(!t) break;
+        max_pos = t.index;
+        //renderMessage(text, "tooling");
+        if(t.name==="print") {
+            if(!t.arg) throw Error("<b>@print</b> error - nothing to print. Maybe you forgot to add arguments?");
+            renderMessage(t.arg, "print");
+            messages.push({ role: "assistant", content: t.arg });
+            text = text.slice(0, t.index) + text.slice(t.index + t.full.length);
+            continue;
+        }
+        if (t.name === "ask") {
+            if (!t.arg.trim())
+                throw Error("<b>@ask</b> error - missing question");
+            renderMessage("@ask " + t.arg, "tooling");
+            messages.push({ role: "user", content: "@ask " + t.arg });
+            const askMessages = messages.concat([
+                { role: "user", content: t.arg }
+            ]);
+            const result = await fetch("http://localhost:11434/api/chat", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    model: modelSelect.value,
+                    messages: askMessages,
+                    stream: false
+                })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.error) throw Error("<b>@ask</b> error - " + data.error);
+                return data.message?.content || "";
+            });
+            Prism.highlightAll();
+            addCopyButtons();
+            scrollToBottom();
+            text = text.slice(0, t.index) + result + text.slice(t.index + t.full.length);
+            continue; // continue the expand loop
+        }
+
+        const payload = {
+            messages: messages,
+            arg: t.arg
+        };
+        const result = await fetch(`http://localhost:8088/tool/${t.name}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        }).then(r => {
+            if (!r.ok) return r.text().then(e => { throw new Error(e); });
+            return r.text();
+        });
+        text =
+            text.slice(0, t.index) +
+            result +
+            text.slice(t.index + t.full.length);
+    }
+
+    return text;
+}
+
+
+async function sendMessage() {
+    let text = input.value;
+    if (!text.trim()) return;
+    const original_text = text;
+    input.value = "";
+    //if(document.getElementById("toggleTools").value))
+    //renderMessage(text, "prompt");
+    try {
+        if (!text.trim()) return;
+        if(document.getElementById("toggleTools").value === "true") {
+            messages.push({ role: "user", content: original_text });
+            renderMessage(text, "prompt");
+        }
+        text = await expandTools(text, messages);
+        if(document.getElementById("toggleTools").value === "true") {
+            if (!text.trim()) return;
+            messages.push({ role: "assistant", content: "Prompt generated successfully." });
+            messages.push({ role: "user", content: text });
+            renderMessage(text, "tooling");
+            Prism.highlightAll();
+            addCopyButtons();
+            scrollToReplyBottom();
+            //return;
+        }
+        if (!text.trim()) return;
+    } catch (err) {
+        renderMessage(err.message, "error");
+        messages.push({ role: "assistant", content: err.message });
+        Prism.highlightAll();
+        addCopyButtons();
+        scrollToReplyBottom();
+        return;
+    }
+
+    if(document.getElementById("toggleTools").value !== "true") {
+        renderMessage(text, "prompt");
+        messages.push({ role: "user", content: text });
+    }
+    input.value = "";
+
+    // Now the *expanded* text is the user message
+
+    fetch("http://localhost:11434/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            model: modelSelect.value,
+            messages: messages,
+            stream: false
+        })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.error) {
+            renderMessage(data.error, "error");
+            messages.push({ role: "assistant", content: data.error });
+            return;
+        }
+        const reply = data.message?.content || "(no reply)";
+        messages.push({ role: "assistant", content: reply });
+        renderMessage(reply, "reply");
+        Prism.highlightAll();
+        addCopyButtons();
+    })
+    .catch(err => {
+        renderMessage(err, "error");
+        messages.push({ role: "assistant", content: err });
+    });
+}
+
+sendBtn.addEventListener("click", sendMessage);
+input.addEventListener("keydown", (e) => {
+  if (e.ctrlKey && e.key === "Enter") {
+    sendMessage();
+    input.value = "";
+  }
+});
+
+function addDropHandler() {
+  const dropZone = input;
+  dropZone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+  });
+
+  dropZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    if (!e.dataTransfer.files.length) return;
+
+    const file = e.dataTransfer.files[0];
+    const reader = new FileReader();
+
+    reader.addEventListener('load', async () => {
+        let fileContents;
+
+        if (file.type === "application/pdf") {
+            const pdf = await pdfjsLib.getDocument({ data: reader.result }).promise;
+
+            let text = "";
+            for (let i = 1; i <= pdf.numPages; i++) {
+            const page = await pdf.getPage(i);
+            const content = await page.getTextContent();
+            text += content.items.map(t => t.str).join(" ") + "\n";
+            }
+
+            fileContents = `Contents of PDF ${file.name}:\n\n${text}`;
+        } else {
+            fileContents = `Contents of file ${file.name} waiting for further instructions:\n\n${reader.result}`;
+        }
+
+        messages.push({ role: "user", content: fileContents });
+        renderMessage(`File uploaded: ${file.name}`, "prompt");
+
+        setTimeout(() => {
+            fetch("http://localhost:11434/api/chat", {
+            method: 'POST',
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                model: modelSelect.value,
+                messages: messages,
+                stream: false
+            })
+            })
+            .then(r => r.json())
+            .then(data => {
+            const reply = data.message?.content || "(no reply)";
+            messages.push({ role: "assistant", content: reply });
+            renderMessage(reply, "reply");
+            Prism.highlightAll();
+            addCopyButtons();
+            scrollToReplyBottom();
+            })
+            .catch(err => {
+            messages.push({ role: "assistant", content: err });
+            renderMessage(err, "error");
+            });
+        });
+
+    });
+
+    if (file.type === "application/pdf") reader.readAsArrayBuffer(file);
+    else reader.readAsText(file);
+
+  });
+}
+
+addDropHandler();
+
+sendBtn.addEventListener("click", sendMessage);
+</script>
+
+<script>
+// --------------------------------------------
+// LOCAL STORAGE KEYS
+// --------------------------------------------
+const LS_MODEL     = "assistant_model";
+const LS_TOOLS     = "assistant_tools_enabled";
+const LS_MESSAGES  = "assistant_messages";
+const LS_CHAT_HTML = "assistant_chat_html";
+
+// --------------------------------------------
+// RESTORE STATE FROM LOCAL STORAGE
+// --------------------------------------------
+function restoreState() {
+    // Restore model
+    const savedModel = localStorage.getItem(LS_MODEL);
+    if (savedModel) modelSelect.value = savedModel;
+    const savedTools = localStorage.getItem(LS_TOOLS);
+    if (savedTools !== null) toggleTools(savedTools === "true", /*noSave=*/true);
+    const savedHTML = localStorage.getItem(LS_CHAT_HTML);
+    if (savedHTML) {
+        chat.innerHTML = savedHTML;
+        setTimeout(() => {
+            Prism.highlightAll();
+            addCopyButtons();
+        }, 0);
+    }
+
+    // Restore messages array
+    const savedMessages = localStorage.getItem(LS_MESSAGES);
+    if (savedMessages) {
+        try {
+            messages = JSON.parse(savedMessages);
+        } catch {
+            messages = [{ role: "system", content: "You are a helpful AI assistant. Reply concisely." }];
+        }
+    }
+}
+
+
+// --------------------------------------------
+// SAVE STATE TO LOCAL STORAGE
+// --------------------------------------------
+function saveState() {
+    localStorage.setItem(LS_MODEL, modelSelect.value);
+    localStorage.setItem(LS_TOOLS, document.getElementById("toggleTools").value);
+    localStorage.setItem(LS_CHAT_HTML, chat.innerHTML);
+    localStorage.setItem(LS_MESSAGES, JSON.stringify(messages));
+}
+
+// Whenever something changes, save automatically
+modelSelect.addEventListener("change", saveState);
+document.getElementById("toggleTools").addEventListener("change", saveState);
+
+// Hook message rendering to save automatically
+const oldRenderMessage = renderMessage;
+renderMessage = function(content, type) {
+    oldRenderMessage(content, type);
+    saveState();
+};
+
+// --------------------------------------------
+// CLEAR BUTTON
+// --------------------------------------------
+const clearBtn = document.getElementById("clear-btn");
+clearBtn.onclick = () => {
+    localStorage.removeItem(LS_MODEL);
+    localStorage.removeItem(LS_TOOLS);
+    localStorage.removeItem(LS_MESSAGES);
+    localStorage.removeItem(LS_CHAT_HTML);
+
+    chat.innerHTML = "";
+    messages = [{ role: "system", content: "You are a helpful AI assistant. Reply concisely." }];
+    input.value = "";
+};
+
+// --------------------------------------------
+// EDIT SYSTEM CONTEXT BUTTON
+// --------------------------------------------
+
+// Insert button next to the Clear button
+const editSystemBtn = document.getElementById("system-btn");
+// Default system message (used for reset)
+const DEFAULT_SYSTEM_PROMPT = "You are a helpful AI assistant. Reply concisely.";
+
+// Modal elements
+const modalBackdrop = document.getElementById("sysmodal-backdrop");
+const modalInput    = document.getElementById("sysmodal-input");
+const modalSave     = document.getElementById("sysmodal-save");
+const modalCancel   = document.getElementById("sysmodal-cancel");
+const modalReset    = document.getElementById("sysmodal-reset");
+
+// Open modal
+editSystemBtn.onclick = () => {
+    const sys = messages.find(m => m.role === "system");
+    modalInput.value = sys ? sys.content : DEFAULT_SYSTEM_PROMPT;
+    modalBackdrop.style.display = "flex";
+};
+
+// Cancel → close without saving
+modalCancel.onclick = () => {
+    modalBackdrop.style.display = "none";
+};
+
+// Save
+modalSave.onclick = () => {
+    const newText = modalInput.value.trim();
+    if (!messages.length || messages[0].role !== "system")
+        messages.unshift({ role: "system", content: newText });
+    else
+        messages[0].content = newText;
+
+    saveState();
+    modalBackdrop.style.display = "none";
+};
+
+// Reset to default system prompt
+modalReset.onclick = () => {
+    modalInput.value = DEFAULT_SYSTEM_PROMPT;
+
+    // Also update immediately
+    if (!messages.length || messages[0].role !== "system")
+        messages.unshift({ role: "system", content: DEFAULT_SYSTEM_PROMPT });
+    else
+        messages[0].content = DEFAULT_SYSTEM_PROMPT;
+
+    saveState();
+};
+
+
+
+restoreState();
+</script>
+
+
+</body>
+</html>
