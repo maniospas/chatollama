@@ -4,7 +4,7 @@ This is a simple frontend for ollama models that works like a question answering
 I have been mostly using it for simple searches when my internet connectivity is bad
 (so I cannot look up documentation online) or writing code that cannot be made public.
 
-It's somewhat similar to chatGPT but private and controlled by you. Also different I think
+It is somewhat similar to chatGPT but private and controlled by you. Also different I think
 from other Ollama tooling if you, like me, prefer using LLMs as advanced search engines
 instead of being limited to code editor integration. I donnot trust models with command line access.
 
