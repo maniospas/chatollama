@@ -1,13 +1,14 @@
 # CHATOLLAMA
 
 This is a simple frontend for ollama models that works like a question answering page.
-I have been mostly using it for simple tasks or writing code.
+I have been mostly using it for simple searches when my internet connectivity is bad
+(so I cannot look up documentation online) or writing code that cannot be made public.
 
 It's somewhat similar to chatGPT but private and controlled by you. Also different I think
 from other Ollama tooling if you, like me, prefer using LLMs as advanced search engines
 instead of being limited to code editor integration. I donnot trust models with command line access.
 
-This repo is nothing you couln not vibe code yourself, but is released under MIT license anyway.
+This repo is nothing you could not vibe-code yourself, but is released under MIT license anyway.
 Would appreciate some acknowledgement.
 
 ![Screenshot](screenshot.png)
@@ -43,6 +44,10 @@ Then launch the service and visit the printed localhost site from your browser:
 http://localhost:8088/
 ```
 
+To have pdf processing and syntax highlighting offline, you can create a *link/* directory and
+populate it with stuff that is normally retrieved from *cdnjs*. Look at the requirements in *index.html*,
+which has both the online and offline version links. Not distributing those myself because I am worried
+about violating some license. Perhaps will automatically hydrate that directory in the future.
 
 ## Tooling
 
