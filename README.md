@@ -10,6 +10,8 @@ instead of being limited to code editor integration. I donnot trust models with 
 This repo is nothing you couln not vibe code yourself, but is released under MIT license anyway.
 Would appreciate some acknowledgement.
 
+![Screenshot](screenshot.png)
+
 ## Capabilities
 
 - [x] Chat
