@@ -12,14 +12,14 @@ Would appreciate some acknowledgement.
 
 ## Capabilities
 
-[x] Chat
-[x] System context
-[x] Select your models
-[x] Code highlighting
-[x] File uploads
-[x] Controlled tooling
-[ ] Tools asking for user interaction
-[ ] Automatic discovery and integration of ollama models
+- [x] Chat
+- [x] System context
+- [x] Select your models
+- [x] Code highlighting
+- [x] File uploads
+- [x] Controlled tooling
+- [ ] Tools asking for user interaction
+- [ ] Automatic discovery and integration of ollama models
 
 
 ## Instructions
