@@ -113,7 +113,7 @@ def add(messages, arg):
     return str(float(arg[0]) + float(arg[1]))
 
 @tool
-def search(messages, arg):
+def web(messages, arg):
     """@search(query) – DuckDuckGo HTML scraper without bs4, returns clean final URLs."""
 
     api_url = "https://duckduckgo.com/html/?q=" + quote(arg)
@@ -121,6 +121,7 @@ def search(messages, arg):
     html = urlopen(req).read().decode("utf-8")
 
     results = []
+    contents = dict()
     marker = 'class="result__a"'
     idx = 0
     while True:
@@ -149,28 +150,33 @@ def search(messages, arg):
             target = after.split("&", 1)[0]
             url = unquote(target)
         if url.startswith("http") and url not in results:
+            content_start = html.find('class="result__snippet"', href_end)
+            content_start = html.find(">", content_start)+1
+            content_end = html.find("</a>", content_start)
+            contents[url] = html[content_start:content_end]
             results.append(url)
             if len(results) == 10:
                 break
         idx = pos + len(marker)
     out = f"<h3>Search results for: {arg}</h3>"
     for link in results:
-        try:
-            req2 = Request(link, headers={"User-Agent": "Mozilla/5.0"})
-            page = urlopen(req2, timeout=5).read().decode("utf-8", errors="ignore")
-            page = re.sub(r'<script[\s\S]*?</script>', '', page, flags=re.IGNORECASE)
-            page = re.sub(r'<head[\s\S]*?</head>', '', page, flags=re.IGNORECASE)
-            page = re.sub(r'</div\s*>', '\n', page, flags=re.IGNORECASE)
-            page = re.sub(r'<div\s*>', '\n', page, flags=re.IGNORECASE)
-            page = re.sub(r'</p\s*>', '\n', page, flags=re.IGNORECASE)
-            page = re.sub(r'<p\s*>', '\n', page, flags=re.IGNORECASE)
-            page = re.sub(r'<br\s*/?>', '\n', page, flags=re.IGNORECASE)
-            page = re.sub(r'<[^>]+>', '', page)
-            page = html.unescape(page)
-            page = re.sub(r'\n\s*\n+', '\n', page)   # collapse multiple blank lines
-            page = page.strip()
-        except:
-            page = "<i>No preview for bots</i>"
+        page = contents.get(link, "No preview")
+        # try:
+        #     req2 = Request(link, headers={"User-Agent": "Mozilla/5.0"})
+        #     page = urlopen(req2, timeout=5).read().decode("utf-8", errors="ignore")
+        #     page = re.sub(r'<script[\s\S]*?</script>', '', page, flags=re.IGNORECASE)
+        #     page = re.sub(r'<head[\s\S]*?</head>', '', page, flags=re.IGNORECASE)
+        #     page = re.sub(r'</div\s*>', '\n', page, flags=re.IGNORECASE)
+        #     page = re.sub(r'<div\s*>', '\n', page, flags=re.IGNORECASE)
+        #     page = re.sub(r'</p\s*>', '\n', page, flags=re.IGNORECASE)
+        #     page = re.sub(r'<p\s*>', '\n', page, flags=re.IGNORECASE)
+        #     page = re.sub(r'<br\s*/?>', '\n', page, flags=re.IGNORECASE)
+        #     page = re.sub(r'<[^>]+>', '', page)
+        #     page = html.unescape(page)
+        #     page = re.sub(r'\n\s*\n+', '\n', page)   # collapse multiple blank lines
+        #     page = page.strip()
+        # except:
+        #     page = "<i>No preview for bots</i>"
         out += (
             "<details style='margin-bottom:10px;'>"
             "<summary>"

@@ -59,11 +59,12 @@ Arguments can be the outputs of other tools too. That is, you can chain stuff.
 If multiple are needed, they may be separated
 by spaces or commas, though usually you would just write some more text in there.
 
-Tools calls replace themselves with obtained text. For example, you can ask a question like the
-following to pull information from wikipedia and have the model summarize it:
+Tools calls replace themselves with obtained text. For example, you can ask questions like the
+following to pull information from wikipedia or the web and have the model summarize it:
 
 ```
 what are some good recipes for @wiki bananas
+what is @web python
 ```
 
 If you do not want the model to answer on the tool outcome, use the `@print` tool like this:
