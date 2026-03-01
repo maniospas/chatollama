@@ -26,7 +26,7 @@ class NoCacheHandler(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         if self.path == "/tools":
-            tool_list = list(TOOLS.keys())
+            tool_list = list(tools.TOOLS.keys())
             payload = json.dumps(tool_list).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "application/json; charset=utf-8")
@@ -40,7 +40,7 @@ class NoCacheHandler(SimpleHTTPRequestHandler):
         if not self.path.startswith("/tool/"):
             return super().do_POST()
         name = self.path[len("/tool/"):]
-        func = TOOLS.get(name)
+        func = tools.TOOLS.get(name)
         if func is None:
             self.send_html_error(404, f"<b>@{name}</b> not found - such as tool does not exist")
             return

@@ -2,17 +2,15 @@
 
 This is a simple chat interface for ollama models.
 I have been mostly using it for simple searches when my internet connectivity is bad
-(so I cannot look up documentation online) or writing code that cannot be made public.
+(so I cannot look up documentation online) or writing private code sometimes.
 
-It is somewhat similar to chatGPT but private and controlled by you. Also different I think
-from other Ollama tooling if you, like me, prefer using LLMs as advanced search engines
-instead of being limited to code editor integration. I donnot trust models with command line access.
+There do exist similar chat frontends in the Ollama ecosystem. This one, however, aims
+to bring some more controllable and extensible tooling than normal. I am not a believer
+of the "thinking" approach and instead provide tools so that you, the user, can actually
+think for yourself and help the model do something useful and under oversight.
 
-There do exist similar chat frontends in the Ollama ecosystem, and honestly much more polished.
-But in this one the tooling is more controllable and extensible.
-
-This repo is nothing you could not vibe-code yourself, but is released under MIT license anyway.
-Would appreciate some acknowledgement.
+This repo could be vibe-coded in an evening, but is released under MIT license anyway.
+Would appreciate a star if you like it.
 
 ![Screenshot](screenshot.png)
 

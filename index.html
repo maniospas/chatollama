@@ -64,6 +64,7 @@
         padding: 20px;
         box-sizing: border-box;
         margin-bottom: 20px;
+        transition: all 0.5s;
     }
 
     .prompt, .reply, .error, .tooling, .print {
@@ -203,7 +204,7 @@
     }
 
     /* BUTTON ROW (right-aligned, subtle spacing) */
-    #sysmodal-buttons {
+    .sysmodal-buttons {
         margin-top: 14px;
         display: flex;
         justify-content: flex-end;
@@ -221,9 +222,9 @@
     }
 
     /* BUTTON TYPES */
-    #sysmodal-reset  { background: #EEEEEE; color: #aa1f1f; }
-    #sysmodal-cancel { background: #EEEEEE; color: #1f1f1f; }
-    #sysmodal-save   { background: #EEEEEE; color: #1f881f; }
+    #sysmodal-reset, #load-ok, #delete-cancel  { background: #EEEEEE; color: #aa1f1f; }
+    #sysmodal-cancel, #load-cancel, #save-cancel, #delete-ok { background: #EEEEEE; color: #1f1f1f; }
+    #sysmodal-save, #save-ok   { background: #EEEEEE; color: #1f881f; }
 
     /* ANIMATIONS */
     @keyframes fadeIn {
@@ -242,15 +243,21 @@
         top: 20px;
         left: 20px;
         background: #f5f5f5;
-        padding: 14px 14px;
+        padding: 6px 14px;
         border-radius: 12px;
         border: 1px solid #ccc;
         box-shadow: 0 0 12px rgba(0,0,0,0.08);
     }
 
-    /* --- SIDEBAR SECTIONS --- */
-    .sidebar-section {
-        margin-bottom: 22px;
+    #archive {
+        position: absolute;
+        top: 160px;
+        left: 20px;
+        background: #f5f5f5;
+        padding: 6px 14px;
+        border-radius: 12px;
+        border: 1px solid #ccc;
+        box-shadow: 0 0 12px rgba(0,0,0,0.08);
     }
 
     /* --- YOUR ORIGINAL MODEL DROPDOWN STYLE (moved from inline) --- */
@@ -274,7 +281,7 @@
         width: 150px;
         cursor: pointer;
         text-align: left;
-        margin-bottom: 8px;
+        margin-bottom: 0px;
         transition: background 0.15s;
     }
 
@@ -282,7 +289,6 @@
         background: #e2e2e2;
     }
 
-    /* Danger button (clear history) */
     .sidebar-btn.danger {
         color: #AA1F1F;
     }
@@ -292,7 +298,52 @@
     }
 
 
+    /* Archive Styles */
+    #archive-list {
+        display: flex;
+        flex-direction: column;
+    }
 
+    .archive-item:first-of-type {
+        margin-top: 10px;
+    }
+
+    .archive-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: #e9e9e9;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 14px;
+        cursor: pointer;
+        margin-bottom: 5px;
+        margin-top: -2px;
+    }
+
+    .archive-item:hover {
+        background: #dcdcdc;
+    }
+
+    .archive-name {
+        flex: 1;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        margin-right: 5px;
+    }
+
+    .archive-delete {
+        color: #aa1f1f;
+        font-weight: bold;
+        padding: 0 4px;
+    }
+
+    .archive-delete:hover {
+        color: red;
+    }
+
+    #save-name {width:100%}
 
 </style>
 </head>
@@ -311,11 +362,16 @@
             <option value="phi3:latest">phi3</option>
         </select>
     </div>
-
-    <button id="tools-btn-enable" class="sidebar-btn"  onclick="toggleTools(true)"  class="sidebar-btn">▶ allow tools</button>
+    <button id="tools-btn-enable" class="sidebar-btn"  onclick="toggleTools(true)"  class="sidebar-btn">&nbsp;▶ allow tools</button>
     <button id="tools-btn-disable" class="sidebar-btn" onclick="toggleTools(false)" class="sidebar-btn" style="display:none">⛔ disable tools <small>help: @print @tools</small></button><br>
     <button id="system-btn" class="sidebar-btn">🧭 system</button><br>
-    <button id="clear-btn"  class="sidebar-btn danger">🗑️ clear</button><br>
+</div>
+
+
+<div id="archive" style="margin-top: 15px;">
+    <button id="clear-btn"  class="sidebar-btn new">➕ new</button><br>
+    <button id="archive-btn" class="sidebar-btn">💾 save</button>
+    <div id="archive-list"></div>
 </div>
 
 
@@ -332,19 +388,34 @@
 
 <div id="sysmodal-backdrop">
     <div id="sysmodal">
-
-        <h3>System context</h3>
-        <textarea id="sysmodal-input"></textarea>
-
-        <div id="sysmodal-buttons">
-            <button id="sysmodal-reset"  class="sysbtn">Reset</button>
-            <button id="sysmodal-save"   class="sysbtn">Save</button>
-            <button id="sysmodal-cancel" class="sysbtn">Cancel</button>
+        <div id="set-context">
+            <h3>System context</h3>
+            <textarea id="sysmodal-input"></textarea>
+            <div class="sysmodal-buttons">
+                <button id="sysmodal-reset"  class="sysbtn">Reset</button>
+                <button id="sysmodal-save"   class="sysbtn">Save</button>
+                <button id="sysmodal-cancel" class="sysbtn">Cancel</button>
+            </div>
         </div>
-
+        <div id="confirm-load">
+            <h3>Unsaved changes</h3>
+            The current chat has unsaved changes. Moving to another chat will discard them. Cancel and save if you want to retain everything.
+            <div class="sysmodal-buttons">
+                <button id="load-ok" class="sysbtn">Continue</button>
+                <button id="load-cancel" class="sysbtn">Cancel</button>
+            </div>
+        </div>
+        <div id="confirm-save">
+            <h3>Save name</h3>
+            Give a name. This will overwrite any previous save with the same name.
+            <input type="text" id="save-name">
+            <div class="sysmodal-buttons">
+                <button id="save-ok" class="sysbtn">Save</button>
+                <button id="save-cancel" class="sysbtn">Cancel</button>
+            </div>
+        </div>
     </div>
 </div>
-
 
 
 <script>
@@ -369,11 +440,13 @@ function toggleTools(enable, noSave=false) {
     scrollToBottom();
 }
 
-
 const chat = document.getElementById("chat-container");
 const input = document.getElementById("message-input");
 const sendBtn = document.getElementById("send-button");
 const modelSelect = document.getElementById("model-select");
+let messages = [{ role: "system", content: "You are a helpful AI assistant. Reply concisely." }];
+let has_made_changes = false;
+document.getElementById("archive-btn").style.display = "none";
 
 const md = window.markdownit({
     html: true,
@@ -384,8 +457,6 @@ const md = window.markdownit({
         return `<pre><code>${md.utils.escapeHtml(str)}</code></pre>`;
     }
 });
-
-let messages = [{ role: "system", content: "You are a helpful AI assistant. Reply concisely." }];
 
 function addCopyButtons() {
     const blocks = chat.querySelectorAll("pre > code");
@@ -428,6 +499,8 @@ function scrollToBottom() {
 
 
 function renderMessage(content, type) {
+    has_made_changes = true;
+    document.getElementById("archive-btn").style.display = "block";
     const wrapper = document.createElement("div");
     wrapper.className = "message-container";
 
@@ -751,12 +824,16 @@ const LS_MODEL     = "assistant_model";
 const LS_TOOLS     = "assistant_tools_enabled";
 const LS_MESSAGES  = "assistant_messages";
 const LS_CHAT_HTML = "assistant_chat_html";
+const LS_ARCHIVES  = "assistant_archives";
+const LS_DIRTY     = "assistant_has_made_changes";
 
 // --------------------------------------------
 // RESTORE STATE FROM LOCAL STORAGE
 // --------------------------------------------
 function restoreState() {
     // Restore model
+    has_made_changes = localStorage.getItem(LS_DIRTY);
+    document.getElementById("archive-btn").style.display = has_made_changes?"block":"none";
     const savedModel = localStorage.getItem(LS_MODEL);
     if (savedModel) modelSelect.value = savedModel;
     const savedTools = localStorage.getItem(LS_TOOLS);
@@ -779,6 +856,9 @@ function restoreState() {
             messages = [{ role: "system", content: "You are a helpful AI assistant. Reply concisely." }];
         }
     }
+
+    // Load Archive List
+    renderArchiveList();
 }
 
 
@@ -786,6 +866,7 @@ function restoreState() {
 // SAVE STATE TO LOCAL STORAGE
 // --------------------------------------------
 function saveState() {
+    localStorage.setItem(LS_DIRTY, has_made_changes);
     localStorage.setItem(LS_MODEL, modelSelect.value);
     localStorage.setItem(LS_TOOLS, document.getElementById("toggleTools").value);
     localStorage.setItem(LS_CHAT_HTML, chat.innerHTML);
@@ -806,16 +887,28 @@ renderMessage = function(content, type) {
 // --------------------------------------------
 // CLEAR BUTTON
 // --------------------------------------------
-const clearBtn = document.getElementById("clear-btn");
-clearBtn.onclick = () => {
+function clearChat() {
     localStorage.removeItem(LS_MODEL);
     localStorage.removeItem(LS_TOOLS);
     localStorage.removeItem(LS_MESSAGES);
     localStorage.removeItem(LS_CHAT_HTML);
-
     chat.innerHTML = "";
     messages = [{ role: "system", content: "You are a helpful AI assistant. Reply concisely." }];
     input.value = "";
+}
+const clearBtn = document.getElementById("clear-btn");
+clearBtn.onclick = () => {
+    if(has_made_changes) {
+        document.getElementById("load-ok").onclick = () => {
+            clearChat();
+            modalBackdrop.style.display = "none";
+        }
+        modalBackdrop.style.display = "flex";
+        document.getElementById("set-context").style.display = "none";
+        document.getElementById("confirm-load").style.display = "block";
+        document.getElementById("confirm-save").style.display = "none";
+    }
+    else clearChat();
 };
 
 // --------------------------------------------
@@ -831,7 +924,6 @@ const DEFAULT_SYSTEM_PROMPT = "You are a helpful AI assistant. Reply concisely."
 const modalBackdrop = document.getElementById("sysmodal-backdrop");
 const modalInput    = document.getElementById("sysmodal-input");
 const modalSave     = document.getElementById("sysmodal-save");
-const modalCancel   = document.getElementById("sysmodal-cancel");
 const modalReset    = document.getElementById("sysmodal-reset");
 
 // Open modal
@@ -839,12 +931,15 @@ editSystemBtn.onclick = () => {
     const sys = messages.find(m => m.role === "system");
     modalInput.value = sys ? sys.content : DEFAULT_SYSTEM_PROMPT;
     modalBackdrop.style.display = "flex";
+    document.getElementById("set-context").style.display = "block";
+    document.getElementById("confirm-load").style.display = "none";
+    document.getElementById("confirm-save").style.display = "none";
 };
 
 // Cancel → close without saving
-modalCancel.onclick = () => {
-    modalBackdrop.style.display = "none";
-};
+document.getElementById("sysmodal-cancel").onclick = () => {modalBackdrop.style.display = "none";};
+document.getElementById("save-cancel").onclick = () => {modalBackdrop.style.display = "none";};
+document.getElementById("load-cancel").onclick = () => {modalBackdrop.style.display = "none";};
 
 // Save
 modalSave.onclick = () => {
@@ -872,7 +967,112 @@ modalReset.onclick = () => {
 };
 
 
+// --------------------------------------------
+// ARCHIVE FUNCTIONALITY
+// --------------------------------------------
 
+function getArchives() {
+    const data = localStorage.getItem(LS_ARCHIVES);
+    return data ? JSON.parse(data) : {};
+}
+
+function saveArchives(archives) {
+    localStorage.setItem(LS_ARCHIVES, JSON.stringify(archives));
+}
+
+function renderArchiveList() {
+    const list = document.getElementById("archive-list");
+    list.innerHTML = "";
+    const archives = getArchives();
+    const keys = Object.keys(archives).sort((a,b) => archives[b].timestamp - archives[a].timestamp);
+    keys.forEach(name => {
+        const item = document.createElement("div");
+        item.className = "archive-item";
+        const nameSpan = document.createElement("span");
+        nameSpan.className = "archive-name";
+        nameSpan.textContent = name;
+        nameSpan.title = name;
+        nameSpan.onclick = () => {
+            if(has_made_changes) {
+                document.getElementById("load-ok").onclick = () => {
+                    loadArchive(name);
+                    modalBackdrop.style.display = "none";
+                }
+                modalBackdrop.style.display = "flex";
+                document.getElementById("set-context").style.display = "none";
+                document.getElementById("confirm-load").style.display = "block";
+                document.getElementById("confirm-save").style.display = "none";
+            }
+            else loadArchive(name);
+        }
+        const delSpan = document.createElement("span");
+        delSpan.className = "archive-delete";
+        delSpan.innerHTML = "&times;";
+        delSpan.title = "Delete";
+        delSpan.onclick = (e) => {
+            e.stopPropagation(); // Prevent loading when deleting
+            //if(confirm(`Delete archive "${name}"?`))
+            deleteArchive(name);
+
+        };
+        item.appendChild(nameSpan);
+        item.appendChild(delSpan);
+        list.appendChild(item);
+    });
+}
+
+function archiveChat(name) {
+    if (!name || !name.trim()) return;
+    const archives = getArchives();
+    archives[name.trim()] = {
+        timestamp: Date.now(),
+        messages: messages,
+        model: modelSelect.value,
+        tools: document.getElementById("toggleTools").value,
+        html: chat.innerHTML
+    };
+    saveArchives(archives);
+    renderArchiveList();
+    has_made_changes = false;
+    document.getElementById("archive-btn").style.display = "none";
+}
+
+function loadArchive(name) {
+    has_made_changes = false;
+    document.getElementById("archive-btn").style.display = "none";
+    const archives = getArchives();
+    const data = archives[name];
+    if (!data) return;
+    messages = data.messages;
+    modelSelect.value = data.model;
+    toggleTools(data.tools === "true", true); // true = noSave
+    chat.innerHTML = data.html;
+    setTimeout(() => {
+        Prism.highlightAll();
+        addCopyButtons();
+    }, 0);
+    saveState();
+}
+
+function deleteArchive(name) {
+    const archives = getArchives();
+    delete archives[name];
+    saveArchives(archives);
+    renderArchiveList();
+}
+
+document.getElementById("archive-btn").onclick = () => {
+    document.getElementById("set-context").style.display = "none";
+    document.getElementById("confirm-load").style.display = "none";
+    document.getElementById("confirm-save").style.display = "block";
+    document.getElementById("save-ok").onclick = () => {
+        archiveChat(document.getElementById("save-name").value);
+        modalBackdrop.style.display = "none";
+    }
+    modalBackdrop.style.display = "flex";
+}
+
+// Initial Load
 restoreState();
 </script>
 
