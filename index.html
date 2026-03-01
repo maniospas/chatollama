@@ -6,22 +6,23 @@
 <title>ollama assist</title>
 
 <!-- Prism -->
-<link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.17.0/themes/prism.css" rel="stylesheet" loading="lazy" />
-<script async src="https://cdn.jsdelivr.net/npm/prismjs@1.17.0/prism.min.js"></script>
-<script async src="https://cdn.jsdelivr.net/npm/prismjs@1.17.0.languages/python-prism.min.js"></script>
-<script async src="https://cdn.jsdelivr.net/npm/prismjs@1.17.0.languages/javascript-prism.min.js"></script>
-<script async src="https://cdn.jsdelivr.net/npm/prismjs@1.17.0.languages/rust-prism.min.js"></script>
-<script async src="https://cdn.jsdelivr.net/npm/prismjs@1.17.0.languages/lisp-prism.min.js"></script>
-<script async src="https://cdn.jsdelivr.net/npm/prismjs@1.17.0.languages/java-prism.min.js"></script>
-<script async src="https://cdn.jsdelivr.net/npm/prismjs@1.17.0/plugins/tex-svg-full/prism-tex-svg-full.min.js"></script>
-<script async src="https://cdn.jsdelivr.net/npm/pdfjs-dist@2.3.198/build/pdf.min.js"></script>
-<script async src="https://unpkg.com/piano-js@1.0.5/dist/piano.min.js"></script>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism.min.css" rel="stylesheet" type="text/css" loading="lazy" />
+<script async type="text/javascript" src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js"></script>
+<script async type="text/javascript" src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-python.min.js"></script>
+<script src=" https://cdn.jsdelivr.net/npm/prismjs@1.30.0/plugins/keep-markup/prism-keep-markup.min.js "></script>
+<script async type="text/javascript" src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-rust.min.js"></script>
+<script async type="text/javascript" src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-lisp.min.js"></script>
+<script async type="text/javascript" src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-java.min.js"></script>
+<script src=" https://cdn.jsdelivr.net/npm/texsvg@3.0.0/cjs/index.min.js "></script>
+<script src=" https://cdn.jsdelivr.net/npm/pdf.js@0.1.0/index.min.js "></script>
+<script src=" https://cdn.jsdelivr.net/npm/piano.js@0.4.4/build/piano.min.js "></script>
+
 
 <!-- Locally hosted versions in case we want to be offline -->
 <link href="link/prism.css" rel="stylesheet" />
 <script src="link/prism.js"></script>
 <script src="link/prism-python.js"></script>
-<script src="linke/prism-javascript.js"></script>
+<script src="link/prism-javascript.js"></script>
 <script src="link/prism-rust.js"></script>
 <script src="link/prism-lisp.js"></script>
 <script src="link/prism-java.js"></script>
@@ -53,8 +54,8 @@
         flex-direction: column;
         height: 100vh;
         width: 100%;
-        max-width: 1200px;
         box-sizing: border-box;
+        margin-left: 200px;
     }
 
     #chat-container {
@@ -105,9 +106,8 @@
         display: flex;
         padding: 10px;
         gap: 10px;
-        outline: 1px solid #bbb;
-        background: #ddd;
-        margin-bottom: 30px;
+        margin-bottom: 10px;
+        margin-right: 10px;
     }
 
     #message-input {
@@ -423,10 +423,7 @@ function escapeHtml(text) {
 
 
 function scrollToBottom() {
-    const prompts = chat.getElementsByClassName("prompt");
-    if (prompts.length === 0) return;
-    const lastPrompt = prompts[prompts.length - 1];
-    chat.scrollTop = lastPrompt.offsetTop;
+  chat.scrollTop = chat.scrollHeight;
 }
 
 
@@ -461,7 +458,6 @@ function renderMessage(content, type) {
 
     if (type === "ask" || type === "print" || type === "print" || type === "tooling") {
         div.innerHTML = md.render(content);
-        scrollToBottom();
     }
     else if (type === "error")
         div.innerHTML = content;
@@ -472,14 +468,25 @@ function renderMessage(content, type) {
 
     wrapper.appendChild(div);
     chat.appendChild(wrapper);
+
+    setTimeout(()=>{
+        scrollToBottom();
+    }, 150);
 }
 
 function scrollToReplyBottom() {
     const prompts = chat.getElementsByClassName("prompt");
-    if (prompts.length <= 1) return;
-    const lastPrompt = prompts[prompts.length - 1];
-    chat.scrollTop = lastPrompt.offsetTop - 200;
+    if (prompts.length <= 1 || !chat.hasScrollBars) return;
+    let bottom = 0;
+    for (let i = 0; i < prompts.length; i++) {
+        const prompt = prompts[i];
+        const top = prompt.offsetTop;
+        const bottom = top + prompt.offsetHeight;
+        bottom = Math.max(bottom, chat.scrollHeight); // also scroll to the end of the chat
+    }
+    chat.scrollTop = bottom;
 }
+
 
 function findRightmostTool(text, max_pos=-1) {
     if(max_pos==-1) max_pos = text.length - 1;
@@ -563,7 +570,6 @@ async function expandTools(text, messages) {
             });
             Prism.highlightAll();
             addCopyButtons();
-            scrollToBottom();
             text = text.slice(0, t.index) + result + text.slice(t.index + t.full.length);
             continue; // continue the expand loop
         }
@@ -611,7 +617,6 @@ async function sendMessage() {
             renderMessage(text, "tooling");
             Prism.highlightAll();
             addCopyButtons();
-            scrollToReplyBottom();
             //return;
         }
         if (!text.trim()) return;
@@ -620,7 +625,6 @@ async function sendMessage() {
         messages.push({ role: "assistant", content: err.message });
         Prism.highlightAll();
         addCopyButtons();
-        scrollToReplyBottom();
         return;
     }
 
@@ -719,7 +723,6 @@ function addDropHandler() {
             renderMessage(reply, "reply");
             Prism.highlightAll();
             addCopyButtons();
-            scrollToReplyBottom();
             })
             .catch(err => {
             messages.push({ role: "assistant", content: err });
