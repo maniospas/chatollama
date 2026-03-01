@@ -1,12 +1,15 @@
 # CHATOLLAMA
 
-This is a simple frontend for ollama models that works like a question answering page.
+This is a simple chat interface for ollama models.
 I have been mostly using it for simple searches when my internet connectivity is bad
 (so I cannot look up documentation online) or writing code that cannot be made public.
 
 It is somewhat similar to chatGPT but private and controlled by you. Also different I think
 from other Ollama tooling if you, like me, prefer using LLMs as advanced search engines
 instead of being limited to code editor integration. I donnot trust models with command line access.
+
+There do exist similar chat frontends in the Ollama ecosystem, and honestly much more polished.
+But in this one the tooling is more controllable and extensible.
 
 This repo is nothing you could not vibe-code yourself, but is released under MIT license anyway.
 Would appreciate some acknowledgement.
@@ -78,4 +81,44 @@ If you do not want the model to answer on the tool outcome, use the `@print` too
 
 ```
 @print @wiki ducks
+```
+
+# Contributing
+
+You can easily add tools locally, or contribute to this repository through a PR.
+AI-generated code is allowed, but I will immediately reject the following patterns in Python files:
+
+- inline comments that are obvious from the code (e.g., "# read the file and split it into lines")
+- more than four layers of nesting and excessive else statements: perform early break/continue/return
+- excessive intermediate variables and excessive splitting into short functions that are not reused
+- calls to ollama from the backend: the orchestrator is the frontend
+
+If you are unsure about violations, just write a short description of why you left them in
+(even for reasons like "too bored to simplify") and I will properly look into it.
+
+**How to add your own tools?**
+
+Open the file `tools.py` and implement your own tool. Annotate it with the `@tool` decorator
+and return an html string given text input and the list of existing messages. Do not add inline
+css but, if needed, create or reuse css classes from the frontend.
+
+Do not forget to add a usage description docstring. This should be 1-2 lines long.
+Example implementation of the *@wikishort* tool:
+
+```python
+@tool
+def wikishort(messages, query):
+    """wikishort(query) – Wikipedia search that only presents result summaries"""
+    wikipedia.set_lang("en")
+    results = wikipedia.search(query)[:10]
+    output = "\n\n"
+    for i, title in enumerate(results):
+        try:
+            page = wikipedia.page(title)
+            summary = wikipedia.summary(title, sentences=3)
+            output += f"# [{title}]({page.url})\n"
+            output += f"{summary}\n\n"
+        except:
+            pass
+    return output
 ```
