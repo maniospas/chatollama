@@ -10,7 +10,7 @@ import tools
 
 TOOLS = {}
 def tool(func):
-    TOOLS[func.__name__] = func
+    TOOLS[func.__name__.lower()] = func
     return func
 
 
@@ -30,6 +30,14 @@ def tools(messages, arg):
         items.append(f"{doc}")
     ret = "coding tools <br><hr>@ask(text) to get an agent reply<br>@read(text) to get a user input given some text<br>@print(text) to print some text<br>"+"<br>".join(items)+"<br><hr>"
     return ret
+
+@tool
+def If(messages, arg):
+    """@if(condition) - checks whether the condition is affirmative (contains yes/true/correct in any capitalization)"""
+    arg = arg.lower()
+    assert "yes" in arg or "true" in arg or "correct" in arg, arg
+    return " given that "+arg
+
 
 @tool
 def echo(messages, arg):

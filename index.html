@@ -263,7 +263,7 @@
     /* --- YOUR ORIGINAL MODEL DROPDOWN STYLE (moved from inline) --- */
     #model-select {
         padding-left: 6px;
-        font-size: 24px;
+        font-size: 18px;
         border: 0px;
         background-color: #f5f5f5;
         color: #686;
@@ -355,14 +355,14 @@
     <div class="sidebar-section">
         <select id="model-select">
             <option value="llama3.2:latest">llama3.2</option>
-            <option value="minimax-m2.5:cloud">minimax2.5 (cloud)</option>
+            <option value="minimax-m2.5:cloud">m2.5 (cloud)</option>
             <option value="mistral:latest">mistral</option>
             <option value="gemma3:270m ">gemma3 (270m)</option>
             <option value="codellama:latest">codellama</option>
             <option value="phi3:latest">phi3</option>
         </select>
     </div>
-    <button id="tools-btn-enable" class="sidebar-btn"  onclick="toggleTools(true)"  class="sidebar-btn">&nbsp;▶ allow tools</button>
+    <button id="tools-btn-enable" class="sidebar-btn"  onclick="toggleTools(true)"  class="sidebar-btn" style="padding-left:7px">▶ allow tools</button>
     <button id="tools-btn-disable" class="sidebar-btn" onclick="toggleTools(false)" class="sidebar-btn" style="display:none">⛔ disable tools <small>help: @print @tools</small></button><br>
     <button id="system-btn" class="sidebar-btn">🧭 system</button><br>
 </div>
@@ -401,8 +401,8 @@
             <h3>Unsaved changes</h3>
             The current chat has unsaved changes. Moving to another chat will discard them. Cancel and save if you want to retain everything.
             <div class="sysmodal-buttons">
-                <button id="load-ok" class="sysbtn">Continue</button>
-                <button id="load-cancel" class="sysbtn">Cancel</button>
+                <button id="load-ok" class="sysbtn">Continue (enter)</button>
+                <button id="load-cancel" class="sysbtn">Cancel (esc)</button>
             </div>
         </div>
         <div id="confirm-save">
@@ -410,8 +410,8 @@
             Give a name. This will overwrite any previous save with the same name.
             <input type="text" id="save-name">
             <div class="sysmodal-buttons">
-                <button id="save-ok" class="sysbtn">Save</button>
-                <button id="save-cancel" class="sysbtn">Cancel</button>
+                <button id="save-ok" class="sysbtn">Save (enter)</button>
+                <button id="save-cancel" class="sysbtn">Cancel (esc)</button>
             </div>
         </div>
     </div>
@@ -607,6 +607,8 @@ function findRightmostTool(text, max_pos=-1) {
 
 async function expandTools(text, messages) {
     let max_pos = -1;
+    let previous_messages_length = messages.length;
+    if(previous_messages_length && messages[previous_messages_length-1].role=="user") previous_messages_length -= 1;
     while (true) {
         const t = findRightmostTool(text, max_pos);
         if(!t) break;
@@ -624,9 +626,10 @@ async function expandTools(text, messages) {
                 throw Error("<b>@ask</b> error - missing question");
             renderMessage("@ask " + t.arg, "tooling");
             messages.push({ role: "user", content: "@ask " + t.arg });
-            const askMessages = messages.concat([
+            const askMessages = messages.slice(0,previous_messages_length).concat([
                 { role: "user", content: t.arg }
             ]);
+            console.log(askMessages);
             const result = await fetch("http://localhost:11434/api/chat", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -744,6 +747,24 @@ input.addEventListener("keydown", (e) => {
     input.value = "";
   }
 });
+
+document.addEventListener("keydown", (e) => {
+    if (modalBackdrop.style.display === "none") return;
+    const setContextVisible = document.getElementById("set-context").style.display !== "none";
+    const confirmLoadVisible = document.getElementById("confirm-load").style.display !== "none";
+    const confirmSaveVisible = document.getElementById("confirm-save").style.display !== "none";
+    if (e.key === "Enter") {
+        if (setContextVisible) document.getElementById("sysmodal-save").click();
+        else if (confirmLoadVisible) document.getElementById("load-ok").click();
+        else if (confirmSaveVisible) document.getElementById("save-ok").click();
+    }
+    else if (e.key === "Escape") {
+        if (setContextVisible) document.getElementById("sysmodal-cancel").click();
+        else if (confirmLoadVisible) document.getElementById("load-cancel").click();
+        else if (confirmSaveVisible) document.getElementById("save-cancel").click();
+    }
+});
+
 
 function addDropHandler() {
   const dropZone = input;
