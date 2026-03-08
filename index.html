@@ -53,7 +53,7 @@
         display: flex;
         flex-direction: column;
         height: 100vh;
-        width: 100%;
+        width: 90%;
         box-sizing: border-box;
         margin-left: 200px;
     }
@@ -66,6 +66,16 @@
         margin-bottom: 20px;
         transition: all 0.5s;
     }
+
+    #install-name {
+        width: 100%;
+        margin-top: 10px;
+        padding: 8px;
+        border-radius: 6px;
+        border: 1px solid #ccc;
+        font-size: 14px;
+    }
+
 
     .prompt, .reply, .error, .tooling, .print {
         width: 95%;
@@ -247,6 +257,7 @@
         border-radius: 12px;
         border: 1px solid #ccc;
         box-shadow: 0 0 12px rgba(0,0,0,0.08);
+        max-width: 150px;
     }
 
     #archive {
@@ -262,12 +273,12 @@
 
     /* --- YOUR ORIGINAL MODEL DROPDOWN STYLE (moved from inline) --- */
     #model-select {
-        padding-left: 6px;
-        font-size: 18px;
+        padding: 4px 6px;
+        font-size: 14px;
         border: 0px;
         background-color: #f5f5f5;
         color: #686;
-        width: 150px;
+        width: 100%;
     }
 
     /* --- SIDEBAR BUTTON STYLE --- */
@@ -276,13 +287,21 @@
         border: none;
         background: #f5f5f5;
         color: #222;
-        font-size: 16px;
+        font-size: 14px;
         border-radius: 6px;
-        width: 150px;
         cursor: pointer;
         text-align: left;
+        margin-top: 0px;
         margin-bottom: 0px;
         transition: background 0.15s;
+    }
+    .sidebar-btn.narrow {
+        padding: 4px 6px;
+    }
+
+    .topbar {
+        display:flex;
+        flex-direction: row;
     }
 
     .sidebar-btn:hover {
@@ -356,21 +375,21 @@
         <select id="model-select">
             <option value="llama3.2:latest">llama3.2</option>
             <option value="minimax-m2.5:cloud">m2.5 (cloud)</option>
+            <option value="glm-5:cloud">glm-5 (cloud)</option>
             <option value="mistral:latest">mistral</option>
             <option value="gemma3:270m ">gemma3 (270m)</option>
             <option value="codellama:latest">codellama</option>
             <option value="phi3:latest">phi3</option>
         </select>
     </div>
-    <button id="tools-btn-enable" class="sidebar-btn"  onclick="toggleTools(true)"  class="sidebar-btn" style="padding-left:7px">▶ allow tools</button>
-    <button id="tools-btn-disable" class="sidebar-btn" onclick="toggleTools(false)" class="sidebar-btn" style="display:none">⛔ disable tools <small>help: @print @tools</small></button><br>
-    <button id="system-btn" class="sidebar-btn">🧭 system</button><br>
-</div>
-
-
-<div id="archive" style="margin-top: 15px;">
-    <button id="clear-btn"  class="sidebar-btn new">➕ new</button><br>
-    <button id="archive-btn" class="sidebar-btn">💾 save</button>
+    <div class="topbar">
+    <button id="system-btn" class="sidebar-btn narrow" style="width:100%">🧭 System</button>
+    </div>
+    <hr>
+    <div class="topbar">
+    <button id="clear-btn"  class="sidebar-btn narrow new">➕ New</button>
+    <button id="archive-btn" class="sidebar-btn narrow">💾 Save</button>
+    </div>
     <div id="archive-list"></div>
 </div>
 
@@ -391,6 +410,9 @@
         <div id="set-context">
             <h3>System context</h3>
             <textarea id="sysmodal-input"></textarea>
+            <button id="tools-btn-enable" class="sidebar-btn"  onclick="toggleTools(true)"  class="sidebar-btn" style="padding-left:7px">▶ Enable tools</button>
+            <button id="tools-btn-disable" class="sidebar-btn" onclick="toggleTools(false)" class="sidebar-btn" style="display:none">⛔ Disable tools<br></button>
+    
             <div class="sysmodal-buttons">
                 <button id="sysmodal-reset"  class="sysbtn">Reset</button>
                 <button id="sysmodal-save"   class="sysbtn">Save</button>
@@ -414,6 +436,16 @@
                 <button id="save-cancel" class="sysbtn">Cancel (esc)</button>
             </div>
         </div>
+        <div id="confirm-install">
+            <h3>Install new model</h3>
+            Provide model name (e.g., "llama3.2", "mistral:latest") from <a href="https://ollama.com/library">ollama</a>:
+            <input type="text" id="install-name" placeholder="Model name">
+            <div id="install-status" style="margin-top:8px;font-size:13px;color:#666;"></div>
+            <div class="sysmodal-buttons">
+                <button id="install-ok" class="sysbtn">Install (enter)</button>
+                <button id="install-cancel" class="sysbtn">Cancel (esc)</button>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -435,8 +467,10 @@ function toggleTools(enable, noSave=false) {
     stateElem.value = enable ? "true" : "false";
     btnEnable.style.display = enable ? "none" : "inline-block";
     btnDisable.style.display = enable ? "inline-block" : "none";
-    input.value = "";
-    if (!noSave && typeof saveState === "function") saveState();
+    if (!noSave && messages.length > 0 && messages[0].role === "system") {
+        messages[0].toolsEnabled = enable;
+        saveState();
+    }
     scrollToBottom();
 }
 
@@ -491,6 +525,130 @@ function escapeHtml(text) {
         .join("<br>");
 }
 
+
+// --------------------------------------------
+// MODEL DETECTION & INSTALLATION
+// --------------------------------------------
+async function fetchModels() {
+    try {
+        const res = await fetch("http://localhost:11434/api/tags");
+        const data = await res.json();
+        return data.models || [];
+    } catch (e) {
+        console.error("Failed to fetch models:", e);
+        return [];
+    }
+}
+
+function populateModelDropdown(models) {
+    const select = modelSelect;
+    const currentValue = select.value;
+    select.innerHTML = "";
+
+    models.forEach(m => {
+        const opt = document.createElement("option");
+        opt.value = m.name;
+        opt.textContent = m.name;
+        select.appendChild(opt);
+    });
+
+    // Add separator and install option
+    const installOpt = document.createElement("option");
+    installOpt.value = "__install__";
+    installOpt.textContent = "📦 Install...";
+    installOpt.style.color = "#666";
+    installOpt.style.fontStyle = "italic";
+    select.appendChild(installOpt);
+
+    // Restore previous selection if still available
+    if (models.some(m => m.name === currentValue)) {
+        select.value = currentValue;
+    } else if (models.length > 0) {
+        select.value = models[0].name;
+    }
+}
+
+modelSelect.addEventListener("change", async () => {
+    if (modelSelect.value === "__install__") {
+        // Open install modal
+        document.getElementById("set-context").style.display = "none";
+        document.getElementById("confirm-load").style.display = "none";
+        document.getElementById("confirm-save").style.display = "none";
+        document.getElementById("confirm-install").style.display = "block";
+        document.getElementById("install-name").value = "";
+        document.getElementById("install-status").textContent = "";
+        modalBackdrop.style.display = "flex";
+        document.getElementById("install-name").focus();
+    } else {
+        saveState();
+    }
+});
+
+document.getElementById("install-cancel").onclick = async () => {
+    modalBackdrop.style.display = "none";
+    const models = await fetchModels();
+    if (models.length > 0) modelSelect.value = models[0].name;
+};
+
+
+document.getElementById("install-ok").onclick = async () =>  {
+    const name = document.getElementById("install-name").value.trim();
+    if (!name) return;
+
+    status.textContent = "Installing... (this may take a while)";
+    status.style.color = "#225599";
+
+    try {
+        const signal = null; // Required for progress events
+        const res = await fetch("http://localhost:11434/api/pull", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name, stream: false }),
+            signal: signal => {
+                signal.addEventListener('progress', (event) => {
+                    if (event.total > 0) {
+                        const percentComplete = (event.loaded / event.total) * 100;
+                        status.textContent = `Installing... ${percentComplete.toFixed(0)}%`;
+                        status.style.color = "#1f881f";
+                    }
+                });
+            }
+        });
+
+        const data = await res.json();
+
+        if (data.error) throw new Error(data.error);
+
+        status.textContent = "✓ Installed successfully!";
+        status.style.color = "#1f881f";
+
+        // Refresh model list
+        const models = await fetchModels();
+        populateModelDropdown(models);
+        modelSelect.value = name;
+        saveState();
+
+        setTimeout(() => {
+            modalBackdrop.style.display = "none";
+        }, 800);
+    } catch (e) {
+        status.textContent = "Error: " + e.message;
+        status.style.color = "#aa1f1f";
+    }
+}
+
+// Handle Enter in install modal
+document.getElementById("install-name").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+        document.getElementById("install-ok").click();
+    }
+});
+
+// Initialize models on load
+async function initModels() {
+    const models = await fetchModels();
+    populateModelDropdown(models);
+}
 
 
 function scrollToBottom() {
@@ -753,18 +911,20 @@ document.addEventListener("keydown", (e) => {
     const setContextVisible = document.getElementById("set-context").style.display !== "none";
     const confirmLoadVisible = document.getElementById("confirm-load").style.display !== "none";
     const confirmSaveVisible = document.getElementById("confirm-save").style.display !== "none";
+    const confirmInstallVisible = document.getElementById("confirm-install").style.display !== "none";
     if (e.key === "Enter") {
         if (setContextVisible) document.getElementById("sysmodal-save").click();
         else if (confirmLoadVisible) document.getElementById("load-ok").click();
         else if (confirmSaveVisible) document.getElementById("save-ok").click();
+        else if (confirmInstallVisible) document.getElementById("install-ok").click();
     }
     else if (e.key === "Escape") {
         if (setContextVisible) document.getElementById("sysmodal-cancel").click();
         else if (confirmLoadVisible) document.getElementById("load-cancel").click();
         else if (confirmSaveVisible) document.getElementById("save-cancel").click();
+        else if (confirmInstallVisible) document.getElementById("install-cancel").click();
     }
 });
-
 
 function addDropHandler() {
   const dropZone = input;
@@ -857,8 +1017,7 @@ function restoreState() {
     document.getElementById("archive-btn").style.display = has_made_changes?"block":"none";
     const savedModel = localStorage.getItem(LS_MODEL);
     if (savedModel) modelSelect.value = savedModel;
-    const savedTools = localStorage.getItem(LS_TOOLS);
-    if (savedTools !== null) toggleTools(savedTools === "true", /*noSave=*/true);
+    
     const savedHTML = localStorage.getItem(LS_CHAT_HTML);
     if (savedHTML) {
         chat.innerHTML = savedHTML;
@@ -873,6 +1032,11 @@ function restoreState() {
     if (savedMessages) {
         try {
             messages = JSON.parse(savedMessages);
+            // Load tools state from the role (system context)
+            if (messages.length > 0 && messages[0].role === "system") {
+                const toolsEnabled = messages[0].toolsEnabled === true;
+                toggleTools(toolsEnabled, /*noSave=*/true);
+            }
         } catch {
             messages = [{ role: "system", content: "You are a helpful AI assistant. Reply concisely." }];
         }
@@ -880,6 +1044,28 @@ function restoreState() {
 
     // Load Archive List
     renderArchiveList();
+}
+let prev_tools_enabled = false;
+
+async function autoRunPrintTools() {
+    const toolsEnabled = document.getElementById("toggleTools").value === "true";
+    if (toolsEnabled) {
+        // Simulate user typing @print @tools
+        const text = "@print @tools";
+        try {
+            let expanded = await expandTools(text, messages);
+            if (expanded.trim()) {
+                messages.push({ role: "user", content: expanded });
+                renderMessage(expanded, "tooling");
+                Prism.highlightAll();
+                addCopyButtons();
+            }
+        } catch (err) {
+            renderMessage(err.message, "error");
+        }
+    }
+    else 
+        renderMessage("tools disabled", "print");
 }
 
 
@@ -916,18 +1102,23 @@ function clearChat() {
     chat.innerHTML = "";
     messages = [{ role: "system", content: "You are a helpful AI assistant. Reply concisely." }];
     input.value = "";
+    modalBackdrop.style.display = "none";
+
+    const toolsEnabled = document.getElementById("toggleTools").value === "true";
+    if (toolsEnabled) 
+        autoRunPrintTools();
 }
 const clearBtn = document.getElementById("clear-btn");
 clearBtn.onclick = () => {
     if(has_made_changes) {
         document.getElementById("load-ok").onclick = () => {
             clearChat();
-            modalBackdrop.style.display = "none";
         }
         modalBackdrop.style.display = "flex";
         document.getElementById("set-context").style.display = "none";
         document.getElementById("confirm-load").style.display = "block";
         document.getElementById("confirm-save").style.display = "none";
+        document.getElementById("confirm-install").style.display = "none";
     }
     else clearChat();
 };
@@ -955,6 +1146,7 @@ editSystemBtn.onclick = () => {
     document.getElementById("set-context").style.display = "block";
     document.getElementById("confirm-load").style.display = "none";
     document.getElementById("confirm-save").style.display = "none";
+    document.getElementById("confirm-install").style.display = "none";
 };
 
 // Cancel → close without saving
@@ -965,27 +1157,48 @@ document.getElementById("load-cancel").onclick = () => {modalBackdrop.style.disp
 // Save
 modalSave.onclick = () => {
     const newText = modalInput.value.trim();
-    if (!messages.length || messages[0].role !== "system")
-        messages.unshift({ role: "system", content: newText });
-    else
+    const currentToolsEnabled = document.getElementById("toggleTools").value === "true";
+    
+    if (!messages.length || messages[0].role !== "system") {
+        messages.unshift({ 
+            role: "system", 
+            content: newText,
+            toolsEnabled: currentToolsEnabled 
+        });
+    } else {
         messages[0].content = newText;
+        messages[0].toolsEnabled = currentToolsEnabled;
+    }
 
     saveState();
     modalBackdrop.style.display = "none";
+    autoRunPrintTools();
 };
 
 // Reset to default system prompt
 modalReset.onclick = () => {
     modalInput.value = DEFAULT_SYSTEM_PROMPT;
 
-    // Also update immediately
-    if (!messages.length || messages[0].role !== "system")
-        messages.unshift({ role: "system", content: DEFAULT_SYSTEM_PROMPT });
-    else
+    const currentToolsEnabled = document.getElementById("toggleTools").value === "true";
+    
+    if (!messages.length || messages[0].role !== "system") {
+        messages.unshift({ 
+            role: "system", 
+            content: DEFAULT_SYSTEM_PROMPT,
+            toolsEnabled: currentToolsEnabled 
+        });
+    } else {
         messages[0].content = DEFAULT_SYSTEM_PROMPT;
+        messages[0].toolsEnabled = currentToolsEnabled;
+    }
 
     saveState();
+    modalBackdrop.style.display = "none";
+    
+    // Auto-run @print @tools if tools are enabled
+    autoRunPrintTools();
 };
+
 
 
 // --------------------------------------------
@@ -1023,6 +1236,7 @@ function renderArchiveList() {
                 document.getElementById("set-context").style.display = "none";
                 document.getElementById("confirm-load").style.display = "block";
                 document.getElementById("confirm-save").style.display = "none";
+                document.getElementById("confirm-install").style.display = "none";
             }
             else loadArchive(name);
         }
@@ -1066,13 +1280,22 @@ function loadArchive(name) {
     if (!data) return;
     messages = data.messages;
     modelSelect.value = data.model;
-    toggleTools(data.tools === "true", true); // true = noSave
+    
+    // Load tools from the archived role
+    const toolsEnabled = (messages.length > 0 && messages[0].role === "system") 
+        ? (messages[0].toolsEnabled === true) 
+        : false;
+    toggleTools(toolsEnabled, true); // true = noSave
+    
     chat.innerHTML = data.html;
     setTimeout(() => {
         Prism.highlightAll();
         addCopyButtons();
     }, 0);
     saveState();
+    
+    // Auto-run @print @tools if tools are enabled in this archive
+    autoRunPrintTools();
 }
 
 function deleteArchive(name) {
@@ -1094,7 +1317,8 @@ document.getElementById("archive-btn").onclick = () => {
 }
 
 // Initial Load
-restoreState();
+initModels();
+
 </script>
 
 

@@ -8,6 +8,19 @@ import re
 import wikipedia
 import tools
 
+
+from curl_cffi.requests import Session
+_session = Session(impersonate="firefox")
+def get_page_content_curl(url: str, timeout: int = 30) -> str | None:
+    return None
+    try:
+        print("Retrieving:", url)
+        resp = _session.get(url, timeout=timeout)
+        return resp.text
+    except Exception as e:
+        print(f"Failed: {e}")
+        return None
+
 TOOLS = {}
 def tool(func):
     TOOLS[func.__name__.lower()] = func
@@ -28,7 +41,7 @@ def tools(messages, arg):
         if not doc: continue
         doc = doc.strip()
         items.append(f"{doc}")
-    ret = "coding tools <br><hr>@ask(text) to get an agent reply<br>@read(text) to get a user input given some text<br>@print(text) to print some text<br>"+"<br>".join(items)+"<br><hr>"
+    ret = "coding tools enabled (disable from system menu) <br><hr>@ask(text) to get an agent reply<br>@read(text) to get a user input given some text<br>@print(text) to print some text<br>"+"<br>".join(items)+"<br><hr>"
     return ret
 
 @tool
@@ -94,11 +107,13 @@ def web(messages, arg):
             content_end = html.find("</a>", content_start)
             contents[url] = html[content_start:content_end]
             results.append(url)
-            if len(results) == 10: break
+            #if len(results) == 10: break
         idx = pos + len(marker)
     out = f"<h3>Search results for: {arg}</h3>"
     for link in results:
-        page = contents.get(link, "No preview")
+        page = get_page_content_curl(link)
+        if not page:
+            page = contents.get(link, "No preview")
         out += (
             "<details style='margin-bottom:10px;'>"
             "<summary>"
