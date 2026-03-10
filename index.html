@@ -144,6 +144,18 @@
     }
     #send-button:hover { background-color: #2b6ccc; }
 
+    #learn-button{
+        width:160px;
+        border:none;
+        background:#555555;
+        color:#fff;
+        cursor:pointer;
+        border-radius:6px;
+        font-size:14px;
+    }
+    #learn-button:hover{background:#777777;}
+
+
     .notification-tag {
         position: absolute;
         top: -8px;
@@ -370,6 +382,43 @@
 <body>
 <div id="page">
 
+<!-- put this just before the closing </body> tag -->
+<div id="loading-overlay" style="
+    display:none;
+    position:fixed;
+    inset:0;
+    background:rgba(0,0,0,0.35);
+    backdrop-filter:blur(2px);
+    align-items:center;
+    justify-content:center;
+    z-index:10000;
+">
+    <div style="
+        padding:20px 30px;
+        background:#fff;
+        border-radius:8px;
+        box-shadow:0 4px 12px rgba(0,0,0,0.2);
+        font-family:sans-serif;
+        font-size:1rem;
+        color:#222;
+        display:flex;
+        align-items:center;
+        gap:0.8rem;
+    ">
+        <svg style="width:24px;height:24px;" viewBox="0 0 100 100">
+            <circle cx="50" cy="50" r="35" stroke="#225599" stroke-width="10"
+                    fill="none" stroke-linecap="round">
+                <animateTransform attributeName="transform"
+                                  type="rotate"
+                                  from="0 50 50" to="360 50 50"
+                                  dur="0.8s" repeatCount="indefinite"/>
+            </circle>
+        </svg>
+        Working…
+    </div>
+</div>
+
+
 <div id="sidebar">
     <div class="sidebar-section">
         <select id="model-select">
@@ -396,10 +445,10 @@
 
 <div id="chat-container"></div>
 
-
 <div id="input-bar">
     <textarea id="message-input" placeholder="Type a message or drop a file here..."></textarea>
     <button id="send-button">Send (ctrl+enter)</button>
+    <button id="learn-button">Summary (alt+enter)</button>
     <input type="hidden" id="toggleTools" value="false">
 </div>
 
@@ -459,6 +508,9 @@ window.MathJax = {
     svg: { fontCache: "global" }
 };
 
+function showLoading() {document.getElementById('loading-overlay').style.display = 'flex';setUIEnabled(false)}
+function hideLoading() {document.getElementById('loading-overlay').style.display = 'none';setUIEnabled(true)}
+
 
 function toggleTools(enable, noSave=false) {
     const stateElem = document.getElementById("toggleTools");
@@ -474,9 +526,33 @@ function toggleTools(enable, noSave=false) {
     scrollToBottom();
 }
 
+async function learnAndSummarize() {
+    let text = input.value;
+    if (!text.trim()) return;
+    showLoading(); 
+    const prompt = `You are a summarizing assistant. Extract the most important facts and term relations from the text below. Return ONLY the summary, no extra explanation.\n\n${text}`;
+    const resp = await fetch("http://localhost:11434/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            model: modelSelect.value,
+            messages: [{ role: "user", content: prompt }],
+            stream: false
+        })
+    }).then(r => r.json());
+    if (resp.error) throw new Error(resp.error);
+    let summary = resp.message?.content?.trim();
+    if (!summary) throw new Error("Empty summary returned");
+    summary = "Information summary:<br>"+summary;
+    messages.push({ role: "user", content: summary });
+    input.value = "";
+    renderMessage(summary, "reply");
+}
+
 const chat = document.getElementById("chat-container");
 const input = document.getElementById("message-input");
 const sendBtn = document.getElementById("send-button");
+const learnBtn = document.getElementById("learn-button");
 const modelSelect = document.getElementById("model-select");
 let messages = [{ role: "system", content: "You are a helpful AI assistant. Reply concisely." }];
 let has_made_changes = false;
@@ -591,56 +667,93 @@ document.getElementById("install-cancel").onclick = async () => {
 };
 
 
-document.getElementById("install-ok").onclick = async () =>  {
-    const name = document.getElementById("install-name").value.trim();
-    if (!name) return;
+document.getElementById("install-ok").onclick = async () => {
+    // ----- 1️⃣ Grab UI elements -------------------------------------------------
+    const nameInput = document.getElementById("install-name");
+    const statusEl  = document.getElementById("install-status");
 
-    status.textContent = "Installing... (this may take a while)";
-    status.style.color = "#225599";
+    const name = nameInput?.value.trim();
+    if (!name) return;                         // nothing to install
+
+    // ----- 2️⃣ Show the initial “Installing…” message -------------------------
+    statusEl.textContent = "Installing… (this may take a while)";
+    statusEl.style.color = "#225599";
+
+    // ----- 3️⃣ Prepare an AbortController (optional – handy for cancel) ------
+    const abortCtrl = new AbortController();
 
     try {
-        const signal = null; // Required for progress events
-        const res = await fetch("http://localhost:11434/api/pull", {
+        const response = await fetch("http://localhost:11434/api/pull", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ name, stream: false }),
-            signal: signal => {
-                signal.addEventListener('progress', (event) => {
-                    if (event.total > 0) {
-                        const percentComplete = (event.loaded / event.total) * 100;
-                        status.textContent = `Installing... ${percentComplete.toFixed(0)}%`;
-                        status.style.color = "#1f881f";
-                    }
-                });
-            }
+            body: JSON.stringify({ name, stream: true }),   // <‑‑ stream!
+            signal: abortCtrl.signal                         // <-- proper signal
         });
+        if (!response.ok) {
+            const txt = await response.text();
+            throw new Error(`HTTP ${response.status}: ${txt}`);
+        }
+        const decoder = new TextDecoder("utf-8");
+        const reader   = response.body.getReader();
+        let   buffer   = "";
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;                 // no more data
 
-        const data = await res.json();
+            // Append the new bytes to our leftover string and extract full lines
+            buffer += decoder.decode(value, { stream: true });
+            let lineEnd;
+            while ((lineEnd = buffer.indexOf("\n")) >= 0) {
+                const line = buffer.slice(0, lineEnd).trim();
+                buffer = buffer.slice(lineEnd + 1);
+                if (!line) continue; // skip empty lines
+                let payload;
+                try { payload = JSON.parse(line); }
+                catch (e) { console.warn("Invalid JSON line:", line); continue; }
+                if (payload.error) {
+                    throw new Error(payload.error);
+                }
 
-        if (data.error) throw new Error(data.error);
-
-        status.textContent = "✓ Installed successfully!";
-        status.style.color = "#1f881f";
-
-        // Refresh model list
+                // If we have `total` and `completed`, compute %.
+                if (typeof payload.total === "number" && typeof payload.completed === "number") {
+                    const pct = (payload.completed / payload.total) * 100;
+                    statusEl.textContent = `Installing… ${pct.toFixed(0)}%`;
+                    statusEl.style.color = "#1f881f";
+                } else if (payload.status) {
+                    // Fallback: just show the textual status
+                    statusEl.textContent = `Installing… ${payload.status}`;
+                    statusEl.style.color = "#1f881f";
+                }
+            }
+        }
+        statusEl.textContent = "✓ Installed successfully!";
+        statusEl.style.color = "#1f881f";
         const models = await fetchModels();
         populateModelDropdown(models);
         modelSelect.value = name;
         saveState();
-
         setTimeout(() => {
             modalBackdrop.style.display = "none";
         }, 800);
-    } catch (e) {
-        status.textContent = "Error: " + e.message;
-        status.style.color = "#aa1f1f";
+
+    } catch (err) {
+        console.error(err);
+        statusEl.textContent = `Error: ${err.message}`;
+        statusEl.style.color = "#aa1f1f";
     }
-}
+};
+
 
 // Handle Enter in install modal
 document.getElementById("install-name").addEventListener("keydown", (e) => {
     if (e.key === "Enter") {
-        document.getElementById("install-ok").click();
+        showLoading(); 
+        try {
+            document.getElementById("install-ok").click();
+        }
+        finally {
+            hideLoading();
+        }
     }
 });
 
@@ -657,6 +770,7 @@ function scrollToBottom() {
 
 
 function renderMessage(content, type) {
+    hideLoading();  
     has_made_changes = true;
     document.getElementById("archive-btn").style.display = "block";
     const wrapper = document.createElement("div");
@@ -701,6 +815,7 @@ function renderMessage(content, type) {
     chat.appendChild(wrapper);
 
     setTimeout(()=>{
+        saveState();
         scrollToBottom();
     }, 150);
 }
@@ -838,6 +953,7 @@ async function sendMessage() {
     //if(document.getElementById("toggleTools").value))
     //renderMessage(text, "prompt");
     try {
+        showLoading();
         if (!text.trim()) return;
         if(document.getElementById("toggleTools").value === "true") {
             messages.push({ role: "user", content: original_text });
@@ -854,7 +970,8 @@ async function sendMessage() {
             //return;
         }
         if (!text.trim()) return;
-    } catch (err) {
+    } 
+    catch(err) {
         renderMessage(err.message, "error");
         messages.push({ role: "assistant", content: err.message });
         Prism.highlightAll();
@@ -867,8 +984,7 @@ async function sendMessage() {
         messages.push({ role: "user", content: text });
     }
     input.value = "";
-
-    // Now the *expanded* text is the user message
+    showLoading();
 
     fetch("http://localhost:11434/api/chat", {
         method: "POST",
@@ -899,9 +1015,14 @@ async function sendMessage() {
 }
 
 sendBtn.addEventListener("click", sendMessage);
+learnBtn.addEventListener("click", learnAndSummarize);
 input.addEventListener("keydown", (e) => {
   if (e.ctrlKey && e.key === "Enter") {
     sendMessage();
+    input.value = "";
+  }
+  else if (e.altKey && e.key === "Enter") {
+    learnAndSummarize();
     input.value = "";
   }
 });
@@ -1305,10 +1426,17 @@ function deleteArchive(name) {
     renderArchiveList();
 }
 
+function setUIEnabled(enabled) {
+    const elems = [sendBtn, learnBtn, input, modelSelect];
+    elems.forEach(el => el.disabled = !enabled);
+}
+
+
 document.getElementById("archive-btn").onclick = () => {
     document.getElementById("set-context").style.display = "none";
     document.getElementById("confirm-load").style.display = "none";
     document.getElementById("confirm-save").style.display = "block";
+    document.getElementById("confirm-install").style.display = "none";
     document.getElementById("save-ok").onclick = () => {
         archiveChat(document.getElementById("save-name").value);
         modalBackdrop.style.display = "none";
@@ -1316,8 +1444,15 @@ document.getElementById("archive-btn").onclick = () => {
     modalBackdrop.style.display = "flex";
 }
 
-// Initial Load
-initModels();
+async function startUp() {
+    await initModels();
+    restoreState();
+    renderArchiveList();
+    if (document.getElementById("toggleTools").value === "true")  setTimeout(autoRunPrintTools, 0);
+}
+
+if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", startUp);
+else startUp();
 
 </script>
 
